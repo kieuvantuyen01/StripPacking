@@ -1,0 +1,477 @@
+\documentclass[10pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=blue, filecolor=magenta, urlcolor=cyan,}
+\urlstyle{same}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage[version=4]{mhchem}
+\usepackage{stmaryrd}
+\usepackage{bbold}
+\usepackage{graphicx}
+\usepackage[export]{adjustbox}
+\graphicspath{ {./images/} }
+
+\title{A SAT-based Method for Solving the Two-dimensional Strip Packing Problem }
+
+\author{Takehide Soh ${ }^{1}$, Katsumi Inoue ${ }^{12}$, Naoyuki Tamura ${ }^{3}$, Mutsunori Banbara ${ }^{3}$, and Hidetomo Nabeshima ${ }^{4}$\\
+${ }^{1}$ Department of Informatics, Graduate University for Advanced Studies, soh@nii.ac.jp\\
+2 National Institute of Informatics, ki@nii.ac.jp\\
+${ }^{3}$ Kobe University, \{tamura, banbara\}@kobe-u.ac.jp\\
+${ }^{4}$ University of Yamanashi, nabesima@yamanashi.ac.jp}
+\date{}
+
+
+%New command to display footnote whose markers will always be hidden
+\let\svthefootnote\thefootnote
+\newcommand\blfootnotetext[1]{%
+  \let\thefootnote\relax\footnote{#1}%
+  \addtocounter{footnote}{-1}%
+  \let\thefootnote\svthefootnote%
+}
+
+%Overriding the \footnotetext command to hide the marker if its value is `0`
+\let\svfootnotetext\footnotetext
+\renewcommand\footnotetext[2][?]{%
+  \if\relax#1\relax%
+    \ifnum\value{footnote}=0\blfootnotetext{#2}\else\svfootnotetext{#2}\fi%
+  \else%
+    \if?#1\ifnum\value{footnote}=0\blfootnotetext{#2}\else\svfootnotetext{#2}\fi%
+    \else\svfootnotetext[#1]{#2}\fi%
+  \fi
+}
+
+\begin{document}
+\maketitle
+See discussions, stats, and author profiles for this publication at: \href{https://www.researchgate.net/publication/220445013}{https://www.researchgate.net/publication/220445013}
+
+Article in Fundamenta Informaticae $\cdot$ January 2010\\
+DOI: 10.3233/FI-2010-314 - Source: DBLP
+
+\begin{center}
+\begin{tabular}{|c|c|c|}
+\hline
+Citations & READS &  \\
+\hline
+29 & 1,585 &  \\
+\hline
+\multicolumn{3}{|l|}{5 authors, including:} \\
+\hline
+Takehide Soh &  & Naoyuki Tamura \\
+\hline
+Kobe University &  & Kobe University \\
+\hline
+28 PUBLICATIONS 374 CItATIONS &  & 74 PUBLICATIONS 761 CItATIONS \\
+\hline
+SEE PROFILE &  & SEE PROFILE \\
+\hline
+\end{tabular}
+\end{center}
+
+Hidetomo Nabeshima\\
+University of Yamanashi\\
+33 PUBLICATIONS 355 CITATIONS\\
+SEE PROFILE
+
+\section*{A SAT-based Method for Solving the Two-dimensional Strip Packing Problem }
+
+
+\begin{abstract}
+We propose a satisfiability testing (SAT) based exact approach for solving the two-dimensional strip packing problem (2SPP). In this problem, we are given a set of rectangles and one large rectangle called a strip. The goal of the problem is to pack all rectangles without overlap, into the strip by minimizing the overall height of the packing. We show the method solves a 2 SPP by translating it to SAT problems through a SAT encoding called order encoding. Generated SAT problems tend to be large, then we show techniques to reduce the search space by utilizing symmetries and relations of rectangles. To solve a 2 SPP , that is, to compute the minimum height of a 2 SPP , we need to repeatedly solve similar SAT problems. We then reuse learned clauses, assumptions, and models, which are obtained from previously solved SAT problems, to efficiently compute the minimum height. We attempt to solve 38 instances from the literature and obtain the total of 29 optimal solutions, including the solutions of two open problems.
+\end{abstract}
+
+\section*{1 Introduction}
+Packing problems have many practical applications such as truck loading, LSI layouts and assignments of newspaper articles. There has been a great deal of research on these problems, for example, knapsack problems and bin packing problems. In this paper, we consider a satisfiability testing (SAT) based exact approach for solving the two-dimensional strip packing problem. (2SPP) [2]. This problem is NP-hard in the strong sense because the onedimensional bin packing problem which is strongly NP-hard can easily be transformed into a 2SPP [8].
+
+The input of the 2SPP is a set $R=\left\{r_{1}, \ldots, r_{n}\right\}$ of $n$ rectangles. Each rectangle has a width $w_{i}$ and a height $h_{i}$. We are also given a large rectangle, called a strip, of width $W$. The goal is to pack all rectangles without overlap into the strip by minimizing the height $H$. Although rectangles are allowed\\
+to be rotated by 90 degrees in the general case of the 2SPP, we assume that rectangles cannot be rotated according to convention of previous research $[1$, $4,13,19]$. Furthermore, we assume that only integer values are allowed for $w_{i}, h_{i}, W$, and $H$.
+
+The 2SPP has been well studied in the last decade. There are two types of methods to solve the 2SPP: the exact method and the incomplete method. The exact method can get the optimal solution of the problem. Martello et al. solve relatively small 38 instances and obtained 27 optimal solutions [13]. The incomplete method cannot prove the optimality of the solution, i.e., the obtained minimum height $H$. The method can only confirm the solution as optimum provided that the solution corresponds to the lower bound of the problem. The method can pack over thousand rectangles with keeping quality of solutions $[1,4,15,19]$. Although both types of methods have been well studied, it is difficult to reach the optimal height even so small problems that have up to 200 rectangles as inputs.
+
+For the problem, we propose a SAT-based method for solving the 2SPP. Recent advance of SAT technologies has been tremendous. Many SAT solvers have been developed and solve SAT problems. Most state-of-theart solvers are based on the Davis-Putnam-Logemann-Loveland (DPLL) algorithm [5] and use a clause learning technique [12]. With this technique, SAT solvers generate learned clauses when a conflict is reached and avoid encountering the same conflict in the later search. These techniques make SAT solvers applicable to huge problems which have over millions of clauses. The main advantage of using SAT solvers is that it make possible to use several SAT techniques.
+
+In order to solve the 2SPP with a SAT solver, we represent the problem as a constraint satisfaction problem (CSP) and solve the CSP as a SAT problem through a SAT encoding called order encoding [16]. The feature of the encoding is that a CSP comparison $x \leq a$ is encoded into a Boolean variable and it enable a compact encoding for the 2SPP. However, generated SAT problems have to grow with the number of input rectangles. Then we propose techniques to reduce the search space. These techniques utilize symmetries and relations of rectangles. To reach the optimal solution, we have to repeatedly solve similar sub-problems. For solving these problems efficiently, we reuse learned clauses generated from previously solved problem. We also reuse assumptions and models which are obtained from previously solved sub-problems. In computational experiments, we evaluate techniques to reduce the search space and attempted to solve 38 instances from the literature [13].
+
+The remainder of the paper is organized as follows. Section 2 provides a necessarily brief perspective on the 2SPP and related concepts. Section 3 describes how to encode the 2SPP into SAT problems. Section 4 explains how to solve the optimal height of a 2SPP and several techniques to solve problems efficiently. Section 5 shows computational results. Section 6 dis-\\
+cusses related works. Finally, Section 7 concludes the paper.
+
+\section*{2 Preliminaries}
+In this section, we give preliminaries to take a SAT-based approach to the 2SPP. In the following, $\mathbb{N}$ denotes the set of natural numbers and $\mathbb{Z}$ denotes the set of integers.
+
+\subsection*{2.1 2SPP and 2OPP}
+We consider a SAT-based approach to the two-dimensional strip packing problem (2SPP). Although we want to obtain the optimal height of a 2 SPP , SAT solvers can only determine the satisfiability of a given problem. We thus approach to the 2SPP by solving a sequence of two-dimensional orthogonal packing problems (2OPPs), which are decision problems of the 2SPP with a fixed height of the strip. We give more details of this method in Section 4.1. Here, we define the 2 SPP and the 2OPP as follows [2].
+
+\section*{Two-dimensional strip packing problem (2SPP)}
+Input. A set $R=\left\{r_{1}, \ldots, r_{n}\right\}$ of $n$ rectangles. Each rectangle $r_{i} \in R$ has a width $w_{i}$ and a height $h_{i}\left(w_{i}, h_{i} \in \mathbb{N}\right)$. A Strip of width $W \in \mathbb{N}$.\\
+Constraints. Each rectangle cannot overlap with the others and the edges of the strip and parallel to the horizontal and the vertical axis.
+
+Question. What is the minimum height such that the set of rectangles can be packed in the given strip?
+
+\section*{Two-dimensional orthogonal packing problem (2OPP)}
+Input. A set $R=\left\{r_{1}, \ldots, r_{n}\right\}$ of $n$ rectangles. Each rectangle $r_{i} \in R$ has width $w_{i}$ and height $h_{i}\left(w_{i}, h_{i} \in \mathbb{N}\right)$. A Strip of width $W$ and height $H$ $(W, H \in \mathbb{N})$.
+
+Constraints. Each rectangle cannot overlap with the others and the edges of the strip and parallel to the horizontal and the vertical axis.
+
+Question. Can the set of rectangles be packed in the given strip?
+
+\subsection*{2.2 CSP formulation of 2OPP}
+We now represent the 2OPP as a constraint satisfaction problem (CSP). A CSP is a triple $\langle V, D, C\rangle$, where $V$ is a finite subset of integer variables, $D$ is a function which maps every variable in $V$ to a subset of $\mathbb{Z}$. We use $D(x)$ as the subset of $\mathbb{Z}$ mapped from $x \in V$ and call the set $D(x)$ the domain of $x$. $C$ is a finite set of constraints over a subset of variables in $V$.
+
+The CSP formulation of the 20PP is as follows. Let $x_{i}$ and $y_{i}$ be integer variables such that the pair $\left(x_{i}, y_{i}\right)$ of variables represents the position of lower left coordinates of the rectangle $r_{i}$ in the strip. The domains of $x_{i}$ and $y_{i}$ are as follows.
+
+
+\begin{align*}
+D\left(x_{i}\right) & =\left\{a \in \mathbb{N} \mid 0 \leq a \leq W-w_{i}\right\} \\
+D\left(y_{i}\right) & =\left\{a \in \mathbb{N} \mid 0 \leq a \leq H-h_{i}\right\} \tag{1}
+\end{align*}
+
+
+These domains represent possible values of the coordinates of the rectangle $r_{i}$ and guarantee that $r_{i}$ must not overlap with edges of the strip. For each pair of rectangles $r_{i}$ and $r_{j}(1 \leq i<j \leq n)$, we associate the non-overlapping constraints.
+
+
+\begin{equation*}
+\left(x_{i}+w_{i} \leq x_{j}\right) \vee\left(x_{j}+w_{j} \leq x_{i}\right) \vee\left(y_{i}+h_{i} \leq y_{j}\right) \vee\left(y_{j}+h_{j} \leq y_{i}\right) \tag{2}
+\end{equation*}
+
+
+\subsection*{2.3 Order Encoding}
+There have been several studies on translation methods which encode a CSP into a SAT problem, e.g., direct encoding, log encoding [18], support encoding [10] and log support encoding [9]. Among them, order encoding [16] aims to make a more natural explanation of the order relation of integers. In order encoding, there are two encoding steps. Let $x$ be an integer variable, and $c$ be an integer value. At the first step, a constraint with comparison is translated into primitive comparisons which are in the form of $x \leq c$. At the next step, a primitive comparison is encoded into a Boolean variable $p_{x, c}$. Due to space limitation, we illustrate the encoding method with a simple constraint $x_{1}+1 \leq x_{2}\left(x_{1}, x_{2} \in\{0,1,2,3\}\right)$. This constraint is encoded into the set of primitive comparisons as follows:
+
+$$
+\neg\left(x_{2} \leq 0\right), \quad\left(x_{1} \leq 0\right) \vee \neg\left(x_{2} \leq 1\right), \quad\left(x_{1} \leq 1\right) \vee \neg\left(x_{2} \leq 2\right), \quad\left(x_{1} \leq 2\right)
+$$
+
+Then, these constraints are translated into the following formula of a SAT problem:
+
+$$
+\neg p x_{2,0}, \quad p x_{1,0} \vee \neg p x_{2,1}, \quad p x_{1,1} \vee \neg p x_{2,2}, \quad p x_{1,2}
+$$
+
+where $p x_{i, c}$ denotes $x_{i} \leq c$ for a simple expression. In order encoding, the following axiom clauses are also added:
+
+$$
+\neg p x_{1,0} \vee p x_{1,1}, \quad \neg p x_{1,1} \vee p x_{1,2}, \quad \neg p x_{2,0} \vee p x_{2,1}, \quad \neg p x_{2,1} \vee p x_{2,2}
+$$
+
+\section*{3 From 2OPP into SAT Problems}
+In this section, we explain how to translate a 2OPP into a SAT problem with order encoding. Let $r_{i}, r_{j} \in R(i \neq j)$ be two rectangles in a 2OPP. Let $e$ and $f$ be any integer. Then, the SAT encoding of a 2OPP uses four\\
+\includegraphics[max width=\textwidth, center]{2024_11_07_f186c629feba4d3b3de9g-06}
+
+Figure 1: Example of a 2 SPP\\
+kinds of atoms, $l r_{i, j}, u d_{i, j}, p x_{i, e}$, and $p y_{i, f} . l r_{i, j}$ is true if $r_{i}$ are placed at the left to the $r_{j} . u d_{i, j}$ is true if $r_{i}$ are placed at the downward to the $r_{j}$. $p x_{i, e}$ is true if $r_{i}$ are placed at less than or equal to $e . p y_{i, f}$ is true if $r_{i}$ are placed at less than or equal to $f$. Then, inputs and constraints of a 2OPP can be encoded into a SAT problem as follows.
+
+For each rectangle $r_{i}$, and integer $e$ and $f$ such that $0 \leq e<W-w_{i}$ and $0 \leq f<H-h_{i}$, we have the 2 -literal axiom clauses due to order encoding,
+
+
+\begin{align*}
+& \neg p x_{i, e} \vee p x_{i, e+1}  \tag{3}\\
+& \neg p y_{i, f} \vee p y_{i, f+1}
+\end{align*}
+
+
+For each rectangles $r_{i}, r_{j}(i<j)$, we have the following 4 -literal clauses as the non-overlapping constraints (2):
+
+
+\begin{equation*}
+l r_{i, j} \vee l r_{j, i} \vee u d_{i, j} \vee u d_{j, i} \tag{4}
+\end{equation*}
+
+
+For each rectangles $r_{i}, r_{j}(i<j)$, and integer $e$ and $f$ such that $0 \leq e<$ $W-w_{i}$ and $0 \leq f<H-h_{j}$, we also have the following 3-literal clauses as the non-overlapping constraints (2):
+
+
+\begin{align*}
+& \neg l r_{i, j} \vee p x_{i, e} \vee \neg p x_{j, e+w_{i}} \\
+& \neg l r_{j, i} \vee p x_{j, e} \vee \neg p x_{i, e+w_{j}} \\
+& \neg u d_{i, j} \vee p y_{i, f} \vee \neg p y_{j, f+h_{i}}  \tag{5}\\
+& \neg u d_{j, i} \vee p y_{j, f} \vee \neg p y_{i, f+h_{j}}
+\end{align*}
+
+
+Example. Consider the simple example of 2OPP shown in Figure 1a. We are given four rectangles $\left(w_{1}, h_{1}\right)=(1,2),\left(w_{2}, h_{2}\right)=(1,2),\left(w_{3}, h_{3}\right)=$ $(2,1),\left(w_{4}, h_{4}\right)=(1,1)$ and a strip $(W, H)=(4,4)$. We obtain the SATencoded 2OPP shown in Figure 2. This SAT problem is satisfiable and the figure of packed rectangles corresponding to a model is shown in Fig. 1b. In this case, Boolean variables of the SAT problem are assigned as follows.
+
+$$
+\begin{gathered}
+p x_{1,0}=F, p x_{1,1}=T, p x_{2,0}=T, p x_{3,1}=F, p x_{3,2}=T, p x_{4,1}=F, p x_{4,2}=T \\
+p y_{1,0}=T, p y_{2,0}=T, p y_{3,0}=F, p y_{3,1}=T, p y_{4,0}=T
+\end{gathered}
+$$
+
+\begin{verbatim}
+Variables
+$p x_{1,0}, \ldots, p x_{1,3} \quad p y_{1,0}, \ldots, p y_{1,3} \quad p x_{2,0}, \ldots, p x_{2,2} \quad p y_{2,0}, \ldots, p y_{2,3}$
+$p x_{3,0}, \ldots, p x_{3,3} \quad p y_{3,0}, \ldots, p y_{3,2} \quad p x_{4,0}, \ldots, p x_{4,3} \quad p y_{4,0}, p y_{4,1}$
+Order Constraint (3)
+$\neg p x_{1,0} \vee p x_{1,1}, \neg p x_{1,1} \vee p x_{1,2}, \neg p x_{1,2} \vee p x_{1,3}$
+$\neg p y_{4,0} \vee p y_{4,1}, \neg p y_{4,1} \vee p y_{4,2}, \neg p y_{4,2} \vee p y_{4,3}$
+Non-overlapping Constraint (4), (5)
+$l r_{1,2} \vee l r_{2,1} \vee u d_{1,2} \vee u d_{2,1}$
+    ：
+$l r_{3,4} \vee l r_{4,3} \vee u d_{3,4} \vee u d_{4,3}$
+    $\neg l r_{1,2} \vee \neg p x_{2,0} \quad \neg l r_{1,2} \vee p x_{1,0} \vee \neg p x_{2,1} \quad \neg l r_{1,2} \vee p x_{1,1} \vee \neg p x_{2,2} \quad \neg l r_{1,2} \vee p x_{1,2}$
+$\neg u d_{3,4} \vee \neg p y_{3,0} \quad \neg u d_{3,4} \vee p y_{4,0} \vee \neg p y_{3,1} \quad \neg u d_{3,4} \vee p y_{4,1} \vee \neg p y_{3,2} \quad \neg u d_{3,4} \vee p y_{4,2}$
+\end{verbatim}
+
+Figure 2: Example of SAT-encoded 2OPP\\
+These assignments are converted into the following assignments of the 2OPP:
+
+$$
+\begin{array}{rrrrr}
+x_{1} & =1, & x_{2}=0, & x_{3}=2, & x_{4}=2 \\
+y_{1} & =0, & y_{2}=0, & y_{3}=1, & y_{4}=0
+\end{array}
+$$
+
+\section*{4 Solving 2SPP with a SAT Solver}
+In Section 3, we explained how to translate a 2OPP into a SAT problem. In this section, we show how to compute the optimal height of a 2SPP with a SAT solver by repeatedly solving SAT-encoded 2OPP problems.
+
+\subsection*{4.1 Searching Optimum Height of 2SPP}
+Let $u b$ and $l b$ be upper and lower bounds of a solution of a 2 SPP, respectively. In practice, the lower bound is given by exact methods and the upper bound is given by either exact or incomplete methods. Let $o$ be an integer value such that $l b \leq o \leq u b-1$. We introduce a new Boolean variable $p h_{o}$ which is true if all rectangles are packed at the downward to the height $o$. Then, to solve a 2 SPP, for each rectangle $r_{i}$, and a height $o$ such that $l b \leq o \leq u b-1$, we have the 2 -literal clauses:
+
+
+\begin{equation*}
+\neg p h_{o} \vee p y_{i, o-h_{i}} \tag{6}
+\end{equation*}
+
+
+Furthermore, for each $o(l b \leq o \leq u b-1)$, we have the 2-literal clauses due to order encoding:
+
+
+\begin{equation*}
+\neg p h_{o} \vee p h_{o+1} \tag{7}
+\end{equation*}
+
+
+Let $\Psi$ be the set of clauses consisting of all clauses obtained from (3), (4), (5), (6) and (7). Then, we can decide the satisfiability of a 2OPP with the height $H$ by solving the set of clauses ${ }^{1}$ :
+
+
+\begin{equation*}
+\Psi \cup\left\{p h_{H}\right\} \tag{8}
+\end{equation*}
+
+
+Note that $\Psi$ is common in all 20PPs associated with a 2 SPP.\\[0pt]
+The optimal height of a 2SPP can be obtained by repeatedly solving SAT-encoded 2OPPs. The bisection method, as used in previous studies [11, 14], is useful for efficiently finding the optimal height. First, we set the lower and upper bounds. Then we solve the height which is at the half of the region. If we obtain the satisfiability of the 2OPP, then upper bound updated by the height, or if we obtain the unsatisfiability of the 2OPP, then lower bound updated by the height. We execute these operations repeatedly until the optimal height, which is the boundary between the satisfiable and unsatisfiable problems, is obtained. For example, let us consider the 2SPP which has the optimal height 140 . To compute the optimal height, suppose that the lower bound is 48 and that the upper bound is 393 . Then the height would change as: 48 (UNSAT), 393 (SAT), 221 (SAT), 134 (UNSAT), 178 (SAT), 157 (SAT), ... The solution area becomes more and more constrained until the optimal height is obtained.
+
+\subsection*{4.2 Reducing Techniques}
+Now, we propose techniques which enhance the SAT-based approach. Supposing that $W=H$, the size of clauses of a SAT-encoded 2OPP are $O\left(n^{2}\right)$, where $n$ is the number of rectangles. Generated SAT problems have to grow with the number of input rectangles. We thus propose four techniques to reduce the search space. We give evaluation of these techniques in Section 5.
+
+Domain reduction. To prune the search space, we reduce the domain of the maximum rectangle defined by $w_{m}$ and $h_{m}$ with symmetry (see Figure 3). There are three cases wherein maximum means maximum width, maximum height, or maximum area. We choose the maximum width and obtain a new domain for the maximum rectangle in the horizontal direction:
+
+$$
+D\left(x_{m}\right)=\left\{a \in \mathbb{N} \left\lvert\, 0 \leq a \leq\left\lfloor\frac{W-w_{m}}{2}\right\rfloor\right.\right\}
+$$
+
+Figure 3. shows the original $D\left(r_{m}\right)$ with dots and reduced one with circles, that is, the domain $D\left(x_{m}\right)$ becomes from $\{0,1,2,3\}$ to $\{0,1\}$.
+
+\footnotetext{${ }^{1}$ That is, we use $p h_{H}$ to restrict the upper bound of y -coordinate of each rectangle instead of restricting the domain of each rectangle that was defined in Section 2.2.
+}
+\includegraphics[max width=\textwidth, center]{2024_11_07_f186c629feba4d3b3de9g-09}
+
+By applying this reduction, if $w_{i}$ satisfies $w_{i}>\left\lfloor\frac{W-w_{m}}{2}\right\rfloor$, we can assign $l r_{i, m}=f a l s e$, that is, we can remove literals $l r_{i, m}$ and the clauses including $\neg l r_{i, m}$ from the SAT problem. In Figure 4b, we can see that the $r_{i}$, which has $w_{i}=2$, cannot be packed to the left to $r_{m}$. This reduction is also available in the vertical direction.
+
+Large Rectangles. If we are given large rectangles $r_{i}$ and $r_{j}$ which satisfy $w_{i}+w_{j}>W$, we can assign $l r_{i, j}=f a l s e$ and $l r_{j, i}=f a l s e$ by using a size relation of the pair of rectangles. Thereby, we can remove literals $l r_{i, j}, l r_{j, i}$ and the clauses including either $\neg l r_{i, j}$ or $\neg l r_{j, i}$ from the SAT problem. The condition $w_{i}+w_{j}>W$ means we cannot pack rectangles $r_{i}$ and $r_{j}$ in the horizontal direction (see Fig. 4a). This reduction technique is also available in the vertical direction.
+
+Same Rectangles. If we are given rectangles $r_{i}$ and $r_{j}$ which have the same dimension $\left(w_{i}, h_{i}\right)=\left(w_{j}, h_{j}\right)$, we can fix the positional relation of rectangles. Thereby, we can assign $l r_{j, i}=f a l s e$ and add $l r_{i, j} \vee \neg u d_{j, i}$.
+
+One Pair of Rectangles. We can fix the positional relation between only one pair of rectangles. See Figure 4, by using symmetry, we can restrict the positional relation between $r_{i}$ and $r_{j}$. Hereby, we can assign $l r_{j, i}=f a l s e$ and $u d_{j, i}=$ false. Note that, this technique cannot use with domain reduction simultaneously.
+
+\subsection*{4.3 Reusing Clauses for Incremental Solving}
+To solve the 2SPP, we use Minisat [6] which is the one of the state-of-the-art solvers. Minisat is based on the DPLL algorithm. On the basis of DPLL, Minisat efficiently implements conflict learning [12]. When the current assignment leads to a conflict, a new clause indicating the incompatible assignment is generated as a learned clauses. For example, when $\left(x_{1}, x_{2}, x_{3}\right)=($ true, true, false) is the source of a conflict, the clause $\neg\left(x_{1} \wedge x_{2} \wedge \neg x_{3}\right)=\neg x_{1} \vee \neg x_{2} \vee x_{3}$ is generated. Such a learned clause is utilized to prevent the solver from retrying the same portion of assignments. Note that all learned clauses can be deduced from the initial set of clauses.
+
+Our SAT encoding approach generates a sequence of SAT problems. These SAT problems are similar to each other, that is, $P_{o+1}$ includes $P_{o}$ except for some clauses. This kind of problem is called an incremental SAT problem [7]. Now we propose methods to reuse learned clauses, assumptions, and models for solving incremental SAT problems efficiently.
+
+Learning Clauses. Nabeshima \href{http://et.al}{et.al}. [14] show the effectiveness of reusing learned clauses for solving a job-shop scheduling problem. Eén and Sörensson also report a similar technique in solving incremental SAT [7]. To solve an incremental SAT problem efficiently, we here use their technique to reuse learned clauses for solving the 2 SPP as follows. Let $P$ and $Q$ be SAT problems such that "all non-unit clauses of $P$ are included in $Q$ " (lemmareusability condition). Then by the lemma-reusability theorem by [14], the set $S$ of all learned clauses generated in solving $P$ can be used to solve $Q$. That is, instead of solving $Q$, we can solve $Q \cup S$, which results in pruning a large portion of the search space in many cases. In solving a 2 SPP , two 2OPPs in the form (8) differ only in their unit clauses $p h_{H}$, which satisfies the lemma-reusability condition above. By this way, we can reuse learned clauses produced in solving previous 20PPs in subsequent 20PPs.
+
+Reusing Assumptions. In Section 4.1, we show how to decide the satisfiability at any height of 2SPP, and we need to add unit clause $p h_{H}$ to the problem. If $\Psi \cup\left\{p h_{H}\right\}$ is unsatisfied, we cannot continue the bisection method without removing $p h_{H}$ from the problem.
+
+To resolve this issue, Eén and Sörensson proposed a particular set of a unit clauses called assumptions [7]. An assumption is added before solving the problem, and then removed from the problem. Adding $p h_{H}$ as an assumption, we can do bisection method until the optimal height is obtained.
+
+To solve incremental SAT efficiently, we propose to reuse assumptions. Generally, we solve the problems which are the conjunction of $\Psi$ and at most one $p h_{H}$. Using our method, we can reuse assumptions to next subproblems in bisection method. For example, let $\Psi$ be an encoded 2SPP with $l b=4, u b=10$ and the optimal height 6 . First we give $\Psi$ and $\left\{p h_{7}\right\}$ as an assumption to the solver and it returns SAT. Now we reuse assumptions by adding $\left\{p h_{7}\right\}$ to $\Psi$. Next the SAT solver is given $\Psi \cup\left\{p h_{7}\right\}$ and $\left\{p h_{5}\right\}$ as an assumption, and returns UNSAT. Finally, the SAT solver is given $\Psi \cup\left\{p h_{7}\right\} \cup$ $\left\{\neg p h_{5}\right\}$ and $\left\{p h_{6}\right\}$ as an assumption, and returns SAT. Using this way, we avoid redundant search space.
+
+Reusing Models. When a SAT-encoded 2OPP is satisfiable, a SAT solver outputs a model which represents a placement of all rectangles within a given height H. In solving a 2 SPP, a part of the previously obtained model might correspond to a model of next sub-problem. Let us consider a simple example of a 2 SPP which has the optimal height $H=2$. Suppose that we found a model of the 2OPP with $H=4$ as that shown in Figure 5a. This model partially corresponds to a model with $H=3$ because the two models share the truth assignment that $l r_{2,1}=$ true, $l r_{1,4}=$ true, $u d_{4,3}=$ true .
+
+We thus propose to reuse a partial model to solve the next sub-problem efficiently. A SAT solver assigns either true or false to a variable chosen by some heuristic if there is no unit clause, for example, Minisat [6] tries to assign false to such a decision variable preferentially. On the other hand, our proposed method assigns a decision variable the value which is found in a model of a previous satisfiable problem. By this reusing method, we can help the decision making of a SAT solver.
+
+\section*{5 Experimental Results}
+The presented methods are run on a Xeon 2.6 GHz with 2 GB of memory within 3600 seconds and we use Minisat 2.0 [6] as a SAT solver. We use the benchmark set and those lower bounds shown in the literature by Martello et al. [13]: HT01-HT09, BENG01-BENG10, CGCUT01-CGCUT03, GCUT01GCUT04, and NGCUT01-NGCUT12. All 38 instances are available at "DEIS - Operations Research Group Library of Instances" [17]. These benchmark sets include some problems which are very hard to solve. In
+
+Table 1: Number of Solved Optimal Values with Reducing Techniques
+
+\begin{center}
+\begin{tabular}{l|rrrrr}
+\hline
+Instance & normal & domain & large & same & pair \\
+\hline
+HT01-09 & 7 & 9 & 7 & 8 & 8 \\
+CGCUT01-03 & 1 & 1 & 1 & 1 & 1 \\
+GCUT01-04 & 2 & 2 & 2 & 2 & 2 \\
+NGCUT01-12 & 12 & 12 & 12 & 12 & 12 \\
+BENG01-10 & 2 & 2 & 2 & 4 & 2 \\
+\hline
+Total \# of Opt. & 24 & 26 & 24 & 27 & 25 \\
+\hline
+\end{tabular}
+\end{center}
+
+Table 2: Comparison with previous studies
+
+\begin{center}
+\begin{tabular}{|c|c|c|c|c|c|c|c|c|c|}
+\hline
+\multicolumn{4}{|c|}{Instance} & \multicolumn{3}{|l|}{Proposed method} & \multicolumn{3}{|l|}{Optimum or best known value} \\
+\hline
+Name & $n$ & W & LB & normal & C1 & C2 & Incomp. \( [1,15,19] \) & Exact. [13] & Prop. \\
+\hline
+HT01(c1p1) & 16 & 20 & 20 & 20 & 20 & 20 & op [1, 15] & op & op \\
+\hline
+HT02(c1p2) & 17 & 20 & 20 & 20 & 20 & 20 & op [1, 15] & op & op \\
+\hline
+HT03(c1p3) & 16 & 20 & 20 & 20 & 20 & 20 & op [1, 15] & op & op \\
+\hline
+HT04(c2p1) & 25 & 40 & 15 & 15 & 15 & 15 & op [1, 15] & op & op \\
+\hline
+HT05(c2p2) & 25 & 40 & 15 & 15 & 15 & 15 & op [1, 15] & op & op \\
+\hline
+HT06(c2p3) & 25 & 40 & 15 & 15 & 15 & 15 & op [1, 15] & op & op \\
+\hline
+HT07(c3p1) & 28 & 60 & 30 & 31 & 30 & 30 & op [1] & 31 & op \\
+\hline
+HT08(c3p2) & 29 & 60 & 30 & 31 & 31 & 30 & 31 [1, 15] & 31 & op \\
+\hline
+HT09(c3p3) & 28 & 60 & 30 & 30 & 30 & 30 & op [1, 15] & op & op \\
+\hline
+CGCUT01 & 16 & 10 & 23 & 23 & 23 & 23 & op [1, 15, 19] & op & op \\
+\hline
+CGCUT02 & 23 & 70 & 63 & 67 & 67 & 65 & $65[1,15,19]$ & 67 & 65 \\
+\hline
+CGCUT03 & 62 & 70 & 636 & 671 & 671 & 671 & 658 [15] & 670 & 671 \\
+\hline
+GCUT01 & 10 & 250 & 1016 & 1016 & 1016 & 1016 & op [1, 15, 19] & op & op \\
+\hline
+GCUT02 & 20 & 250 & 1133 & 1196 & 1196 & 1196 & 1187 [15] & 1208 & 1196 \\
+\hline
+GCUT03 & 30 & 250 & 1803 & 1803 & 1803 & 1803 & op [1, 15, 19] & op & op \\
+\hline
+GCUT04 & 50 & 250 & 2934 & 3056 & 3056 & 3056 & 3002 [1] & 3077 & 3056 \\
+\hline
+NGCUT01 & 10 & 10 & 23 & 23 & 23 & 23 & op [1, 15, 19] & op & op \\
+\hline
+NGCUT02 & 17 & 10 & 30 & 30 & 30 & 30 & op [1, 15, 19] & op & op \\
+\hline
+NGCUT03 & 21 & 10 & 28 & 28 & 28 & 28 & op $[1,15,19]$ & op & op \\
+\hline
+NGCUT04 & 7 & 10 & 20 & 20 & 20 & 20 & op [1, 15, 19] & op & op \\
+\hline
+NGCUT05 & 14 & 10 & 36 & 36 & 36 & 36 & op [1, 15, 19] & op & op \\
+\hline
+NGCUT06 & 15 & 10 & 31 & 31 & 31 & 31 & op [1, 15, 19] & op & op \\
+\hline
+NGCUT07 & 8 & 20 & 20 & 20 & 20 & 20 & op [1, 15, 19] & op & op \\
+\hline
+NGCUT08 & 13 & 20 & 33 & 33 & 33 & 33 & op [ 1,15 ] & op & op \\
+\hline
+NGCUT09 & 18 & 20 & 49 & 50 & 50 & 50 & $50[1,15,19]$ & 50 & op \\
+\hline
+NGCUT10 & 13 & 30 & 80 & 80 & 80 & 80 & op [1, 15, 19] & op & op \\
+\hline
+NGCUT11 & 15 & 30 & 50 & 52 & 52 & 52 & op [1, 15] & op & op \\
+\hline
+NGCUT12 & 22 & 30 & 79 & 87 & 87 & 87 & op [1, 15, 19] & op & op \\
+\hline
+BENG01 & 20 & 25 & 30 & 30 & 30 & 30 & op [1, 15, 19] & op & op \\
+\hline
+BENG02 & 40 & 25 & 57 & 58 & 57 & 57 & op [ 1,15 ] & 58 & op \\
+\hline
+BENG03 & 60 & 25 & 84 & 85 & 84 & 85 & op [1, 15, 19] & 85 & op \\
+\hline
+BENG04 & 80 & 25 & 107 & 108 & 108 & 108 & op [1, 15, 19] & 108 & 108 \\
+\hline
+BENG05 & 100 & 25 & 134 & 135 & 134 & 134 & op [1, 15, 19] & op & op \\
+\hline
+BENG06 & 40 & 40 & 36 & 36 & 36 & 36 & op [1, 15, 19] & 37 & op \\
+\hline
+BENG07 & 80 & 40 & 67 & 68 & 68 & 68 & op [1, 15, 19] & op & 68 \\
+\hline
+BENG08 & 120 & 40 & 101 & 102 & 102 & 102 & op [1, 15, 19] & op & 102 \\
+\hline
+BENG09 & 160 & 40 & 126 & 130 & 130 & 130 & op $[1,15,19]$ & op & 130 \\
+\hline
+BENG10 & 200 & 40 & 156 & 158 & 158 & 158 & op [1, 15, 19] & op & 158 \\
+\hline
+\multicolumn{4}{|c|}{Total \# of Opt.} & 24 & 28 & 28 & 32 & 27 & 29 \\
+\hline
+\end{tabular}
+\end{center}
+
+particular, HT08, CGCUT02, 03, GCUT02, 04, NGCUT09 are still open.\\
+We evaluate the reducing techniques shown in Section 4.2. Table 1 shows the number of solved optimal values with each reducing technique. normal represents the method without reducing techniques. domain represents a domain reduction technique. large represents a reduction technique with large rectangles. same represents a reduction technique with same rectangles. pair represents a reduction technique with the one pair of rectangles. Table 1 shows that same computes the largest number of optimal values. Furthermore, all techniques compute the instance group "NGCUT" completely. This means that all these techniques can close open problem NGCUT09.
+
+To compute problems more efficiently, we combine reducing and reusing techniques. Table 2 shows a comparison with our combined methods with previous methods. Due to space limitation, we show top two of 36 combinations that we tried. Columns $1-4$ show the characteristics of each instance such as the instance name, the number of input rectangles, the strip width $W$, and lower bounds from the literature [13]. Columns $5-7$ show the best value obtained by the normal method and the top two combined methods. "C1" denotes results of the following combination: reducing with domain, large and same, reusing learned clauses and assumptions. "C2" denotes results of the following combination: reducing with large and pair, reusing learned clauses and assumptions. Columns 8-10 show a comparison with previous methods. "Incomp." describes the best value by incomplete methods from the literature $[1,15,19]$. All of those methods are reported recently in 2008. "Exact." describes the best value by Martello et al. [13]. "Prop." describes the best value by our methods. "op" denotes that the method obtain the optimal value.
+
+Table 1, 2 show effectiveness of our proposed methods. Our SAT-based method with no reducing and no reducing techniques, can solve 24 optimums including the one open problem. Moreover, the combined methods can solve 28 optimums and close the open problem HT08. Table 2 also shows that our exact methods are competitive with the state-of-the-art incomplete methods. As a result, our methods compute a optimal solution of the instance HT08 (see Figure 7) and proves the optimum of NGCUT09 to be 50. In other words, we prove that the height of 49 has no solution in NGCUT09.
+
+\section*{6 Discussion}
+There are a few report of methods which solve an optimization problem through encoding which translates a problem to decision problems. Bekrar et al. [3] reported an approach to the two-dimensional guillotine strip packing problem which is a variant of the 2SPP. They represent the problem as CSPs and solve the optimum with bisection method. The difference from our work is that they directly solve CSPs. On the other hand, we propose\\
+\includegraphics[max width=\textwidth, center]{2025_03_31_745b934993a07fd20defg-14(1)}
+
+Figure 6: Representation of Conflicts\\
+\includegraphics[max width=\textwidth, center]{2025_03_31_745b934993a07fd20defg-14}
+
+Figure 7: New Solution of HT08\\[0pt]
+the SAT-based method for the 2SPP. Thereby we can apply several incremental SAT techniques and use the state-of-the-art SAT solver that have been widely studied. There are several works on a SAT-based method for other optimization problems. Inoue et al. [11] propose "Multisat" which can execute several SAT solvers in parallel and apply Multisat to SAT planning and the job-shop scheduling problem. The solvers included in Multisat exchange lemmas derived by conflict analysis among different SAT solvers for solving the problems efficiently. Nabeshima et al. [14] report another approach to the problems. Their method shares a learned clauses between sub-problems. Our SAT-based approach enhances these works with reusing assumptions and models, along with reusing learned clauses and is newly applied to the 2SPP.
+
+In our method, we use the order encoding as a SAT encoding. However, there have been well studied about SAT encoding. Here, we consider a difference between direct encoding and order encoding. Let $\left(w_{i}, h_{i}\right)=$ $(2,2),\left(w_{j}, h_{j}\right)=(2,2)$ and place $r_{i}$ at $\left(x_{i}, y_{i}\right)=(3,3)$ (see Figure 6). We can represent overlap constraint of CSP between $r_{i}$ and $r_{j}$ as follows:
+
+$$
+\left(x_{j} \leq 1\right) \vee\left(x_{j} \geq 5\right) \vee\left(y_{j} \leq 1\right) \vee\left(y_{j} \geq 5\right)
+$$
+
+To see difference between order encoding and the others, we compare the SAT clauses encoded with direct encoding [18] and those with order encoding. In the direct encoding, we assign to a SAT variable as $p_{x a}=$ true if and only if the CSP variable $x$ has the domain value $a$, and constraints are encoded to conflict clauses. The encoded clauses are as follows:
+
+$$
+\begin{aligned}
+C S P: & \left(x_{j} \leq 1\right) \vee\left(x_{j} \geq 5\right) \vee\left(y_{j} \leq 1\right) \vee\left(y_{j} \geq 5\right) \\
+S A T(\text { direct }): & \neg p_{x_{j} 2} \vee \neg p_{y_{j} 2} \neg p_{x_{j} 2} \vee \neg p_{y_{j} 3} \quad \neg p_{x_{j} 2} \vee \neg p_{y_{j} 4} \\
+& \neg p_{x_{j} 3} \vee \neg p_{y_{j} 2} \neg p_{x_{j} 3} \vee \neg p_{y_{j} 3} \neg p_{x_{j} 3} \vee \neg p_{y_{j} 4} \\
+& \neg p_{x_{j} 4} \vee \neg p_{y_{j} 2} \neg p_{x_{j} 4} \vee \neg p_{y_{j} 3} \neg p_{x_{j} 4} \vee \neg p_{y_{j} 4} \\
+S A T(\text { order }): & p_{x_{j} 1} \vee \neg p_{x_{j} 4} \vee p_{y_{j} 1} \vee \neg p_{y_{j} 4}
+\end{aligned}
+$$
+
+In direct encoding, constraints are represented as conflict points (see Figure 6a). On the other hand, order encoding represents constraints as\\
+a conflict region (see Figure 6b). This indicates SAT-based approach with order encoding is suitable not only 2 SPP but also geometric problems such as shop scheduling problem.
+
+\section*{7 Conclusion}
+We presented a SAT-based exact method to solve the two-dimensional strip packing problem. Our method solves the problem through order encoding and the bisection method. As far as the authors know, this is the first article that solves the 2 SPP with a SAT solver. Our approach solved two open problems in 2SPP. This indicates that, while SAT-based approaches have been widely studied, there is still remaining challenging problems, especially OR problems like 2SPP.
+
+There are several important future topics. Comparing other SAT-encoding methods is important to evaluate the effect of the order encoding. It is also interesting to compare this method with CSP solvers. Consideration of rotation of input rectangles and applying to other packing problems are worthwhile. There is a possibility that a hybrid system which includes incomplete methods as well as exact methods to solve larger problems.
+
+\section*{Acknowledgments}
+This work was supported in part by Grant-in-Aid for Scientific Research No. 20240003 in Japan Society for the Promotion of Science and the Joint Research Project funded by National Institute of Informatics in Japan. We would like to thank Ateet Bhalla and Koji Iwanuma for their kind suggestion and comments.
+
+\section*{References}
+[1] R. Alvarez-Valdés, F. Parreno, and J. M. Tamarit. Reactive GRASP for the strip-packing problem. Computers and Operations Research, 35(4):1065-1083, 2008.\\[0pt]
+[2] B. S. Baker, E. G. Coffman Jr., and R. L. Rivest. Orthogonal packings in two dimensions. SIAM Journal of Computing, 9(4):846-855, 1980.\\[0pt]
+[3] A. Bekrar, I. Kacem, C. Chu, and C. Sadfi. A dichotomical algorithm for solving the 2D guillotine strip packing problem. In Proceedings of CIE'07, pages 1216-1224, 2007.\\[0pt]
+[4] E. K. Burke, G. Kendall, and G. Whitwell. A new placement heuristic for the orthogonal stock-cutting problem. Operations Research, 52(4):655-671, 2004.\\[0pt]
+[5] M. Davis, G. Logemann, and D. Loveland. A machine program for theorem-proving. Communications of the ACM, 5(7):394-397, 1962.\\[0pt]
+[6] N. Eén and N. Sörensson. An extensible SAT-solver. In $S A T$, volume 2919 of $L N C S$, pages $502-518,2003$.\\[0pt]
+[7] N. Eén and N. Sörensson. Temporal induction by incremental SAT solving. Electronic Notes in Theoretical Computer Science, 89(4):543560, 2003.\\[0pt]
+[8] M. R. Garey and D. S. Johnson, editors. Computers and Intractability: A Guide to the Theory of NP-Completeness. FREEMAN, 1979.\\[0pt]
+[9] M. Gavanelli. The log-support encoding of CSP into SAT. In Proceedings of $C P^{\prime} 07$, volume 4741 of $L N C S$, pages 815-822. 2007.\\[0pt]
+[10] I. P. Gent. Arc consistency in SAT. In Proceedings of ECAI'02, pages 121-125, 2002.\\[0pt]
+[11] K. Inoue, T. Soh, S. Ueda, Y. Sasaura, M. Banbara, and N. Tamura. A competitive and cooperative approach to propositional satisfiability. Discrete Applied Mathematics, 154(16):2291-2306, 2006.\\[0pt]
+[12] J. P. Marques-Silva and K. A. Sakallah. GRASP-A search algorithm for propositional satisfiability. IEEE Transactions on Computers, 48(5):506-521, 1999.\\[0pt]
+[13] S. Martello, M. Monaci, and D. Vigo. An exact approach to the strippacking problem. Journal on Computing, 15(3):310-319, 2003.\\[0pt]
+[14] H. Nabeshima, T. Soh, K. Inoue, and K. Iwanuma. Lemma reusing for sat based planning and scheduling. In Proceedings of ICAPS'06, pages 103-112, June 2006.\\[0pt]
+[15] B. Neveu and G. Trombettoni. Strip packing based on local search and a randomized Best-Fit. In Workshop on BPPC'08, May 2008.\\[0pt]
+[16] N. Tamura, A. Taga, S. Kitagawa, and M. Banbara. Compiling finite linear CSP into SAT. In Proceedings of CP'06, volume 4204 of LNCS, pages 590-603. 2006.\\[0pt]
+[17] \href{http://www.or.deis.unibo.it/research_pages/ORinstances.htm}{http://www.or.deis.unibo.it/research\_pages/ORinstances.htm}.\\[0pt]
+[18] T. Walsh. SAT v CSP. In Proceedings of CP'02, volume 1894 of LNCS, pages 441-456. 2000.\\[0pt]
+[19] L. Wei, D. Zhang, and Q. Chen. A least wasted first heuristic algorithm for the rectangular packing problem. Computers and Operations Research, 2008.
+
+
+\end{document}

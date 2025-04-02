@@ -277,7 +277,7 @@ def timeout_handler(signum, frame):
 results_data = []
 
 try:  # Add outer try-except block for KeyboardInterrupt
-    for instance in [38, 39]:  # Run specific instances 33, 38, and 40
+    for instance in [1, 2]:  # Run specific instances 33, 38, and 40
         try:
             print(f"\nProcessing instance {instance}")
             start = timeit.default_timer()
