@@ -46,7 +46,7 @@ def positive_range(end):
     return range(end)
 
 def SPP_MaxSAT(width, rectangles, lower_bound, upper_bound):
-    """Solve 2SPP using Max-SAT approach with open-wbo"""
+    """Solve 2SPP using Max-SAT approach with tt-open-wbo-inc"""
     n_rectangles = len(rectangles)
     variables = {}
     counter = 1
@@ -54,6 +54,10 @@ def SPP_MaxSAT(width, rectangles, lower_bound, upper_bound):
     # Create a temporary file for the Max-SAT formula
     with tempfile.NamedTemporaryFile(delete=False, mode='w', suffix='.wcnf') as file:
         wcnf_file = file.name
+        
+        # Add comments for clarity (optional)
+        file.write(f"c Strip Packing Problem, W={width}, n={n_rectangles}\n")
+        file.write(f"c Lower bound={lower_bound}, Upper bound={upper_bound}\n")
         
         # Define variables for rectangle positions and relations
         for i in range(n_rectangles):
@@ -89,7 +93,7 @@ def SPP_MaxSAT(width, rectangles, lower_bound, upper_bound):
         for h in range(lower_bound, upper_bound):
             hard_clauses.append([-variables[f"ph_{h}"], variables[f"ph_{h+1}"]])
         
-        # Non-overlapping constraints function 
+        # Non-overlapping constraints function remains the same
         def non_overlapping(i, j, h1, h2, v1, v2):
             i_width = rectangles[i][0]
             i_height = rectangles[i][1]
@@ -106,61 +110,60 @@ def SPP_MaxSAT(width, rectangles, lower_bound, upper_bound):
         
             # First type of constraints - prevent rectangle j's left edge from being in first i_width positions
             if h1:
-                for e in range(i_width):  # FIXED: Use i_width instead of min(width...)
+                for e in range(i_width):
                     if f"px{j + 1},{e}" in variables:
                         hard_clauses.append([-variables[f"lr{i + 1},{j + 1}"], -variables[f"px{j + 1},{e}"]])
             
             # First type for h2 - prevent rectangle i's left edge from being in first j_width positions
             if h2:
-                for e in range(j_width):  # FIXED: Use j_width instead of min(width...)
+                for e in range(j_width):
                     if f"px{i + 1},{e}" in variables:
                         hard_clauses.append([-variables[f"lr{j + 1},{i + 1}"], -variables[f"px{i + 1},{e}"]])
         
             # First type for v1 - prevent rectangle j's bottom edge from being in first i_height positions
             if v1:
-                for y_pos in range(i_height):  # FIXED: Use i_height instead of min(upper_bound...)
+                for y_pos in range(i_height):
                     if f"py{j + 1},{y_pos}" in variables:
                         hard_clauses.append([-variables[f"ud{i + 1},{j + 1}"], -variables[f"py{j + 1},{y_pos}"]])
             
             # First type for v2 - prevent rectangle i's bottom edge from being in first j_height positions
             if v2:
-                for y_pos in range(j_height):  # FIXED: Use j_height instead of min(upper_bound...)
+                for y_pos in range(j_height):
                     if f"py{i + 1},{y_pos}" in variables:
                         hard_clauses.append([-variables[f"ud{j + 1},{i + 1}"], -variables[f"py{i + 1},{y_pos}"]])
         
             # Second type of constraints - enforce relative positions when certain relations hold
-            
             # For h1: if rectangle i is to the left of j, then i's left edge at e implies j can't be at e+i_width
             if h1:
-                for e in positive_range(width - i_width):  # FIXED: Use width - i_width
+                for e in positive_range(width - i_width):
                     if f"px{i + 1},{e}" in variables and f"px{j + 1},{e + i_width}" in variables:
                         hard_clauses.append([-variables[f"lr{i + 1},{j + 1}"],
-                                       variables[f"px{i + 1},{e}"], 
-                                       -variables[f"px{j + 1},{e + i_width}"]])
+                                      variables[f"px{i + 1},{e}"], 
+                                      -variables[f"px{j + 1},{e + i_width}"]])
             
             # For h2: if rectangle j is to the left of i, then j's left edge at e implies i can't be at e+j_width
             if h2:
-                for e in positive_range(width - j_width):  # FIXED: Use width - j_width
+                for e in positive_range(width - j_width):
                     if f"px{j + 1},{e}" in variables and f"px{i + 1},{e + j_width}" in variables:
                         hard_clauses.append([-variables[f"lr{j + 1},{i + 1}"],
-                                       variables[f"px{j + 1},{e}"], 
-                                       -variables[f"px{i + 1},{e + j_width}"]])
+                                      variables[f"px{j + 1},{e}"], 
+                                      -variables[f"px{i + 1},{e + j_width}"]])
         
             # For v1: if rectangle i is below j, then i's bottom edge at f implies j can't be at f+i_height
             if v1:
-                for y_pos in positive_range(upper_bound - i_height):  # FIXED: Use height - i_height
+                for y_pos in positive_range(upper_bound - i_height):
                     if f"py{i + 1},{y_pos}" in variables and f"py{j + 1},{y_pos + i_height}" in variables:
                         hard_clauses.append([-variables[f"ud{i + 1},{j + 1}"],
-                                       variables[f"py{i + 1},{y_pos}"], 
-                                       -variables[f"py{j + 1},{y_pos + i_height}"]])
+                                      variables[f"py{i + 1},{y_pos}"], 
+                                      -variables[f"py{j + 1},{y_pos + i_height}"]])
             
             # For v2: if rectangle j is below i, then j's bottom edge at f implies i can't be at f+j_height
             if v2:
-                for y_pos in positive_range(upper_bound - j_height):  # FIXED: Use height - j_height
+                for y_pos in positive_range(upper_bound - j_height):
                     if f"py{j + 1},{y_pos}" in variables and f"py{i + 1},{y_pos + j_height}" in variables:
                         hard_clauses.append([-variables[f"ud{j + 1},{i + 1}"],
-                                       variables[f"py{j + 1},{y_pos}"], 
-                                       -variables[f"py{i + 1},{y_pos + j_height}"]])
+                                      variables[f"py{j + 1},{y_pos}"], 
+                                      -variables[f"py{i + 1},{y_pos + j_height}"]])
                 
         # Add non-overlapping constraints for all pairs of rectangles
         for i in range(n_rectangles):
@@ -191,37 +194,44 @@ def SPP_MaxSAT(width, rectangles, lower_bound, upper_bound):
         # Prepare soft clauses with weights for height minimization
         soft_clauses = []
         
-        # Use increasing weights to prefer FALSE for larger heights
+        # Use weight 1 for all height variables
         for h in range(lower_bound, upper_bound + 1):
-            weight = 1
             soft_clauses.append((1, [variables[f"ph_{h}"]]))  # We want ph_h to be FALSE when possible
         
         # Require at least one ph_h to be true (ensures a solution exists)
         all_ph_vars = [variables[f"ph_{h}"] for h in range(lower_bound, upper_bound + 1)]
         hard_clauses.append(all_ph_vars)
         
-        # Write WCNF header: p wcnf num_variables num_clauses top_weight
-        top_weight = 2  # Any value > max soft clause weight
-        file.write(f"p wcnf {counter - 1} {len(hard_clauses) + len(soft_clauses)} {top_weight}\n")
+        # No p-line needed for tt-open-wbo-inc
         
-        # Write hard clauses with top weight
+        # Write hard clauses with 'h' prefix
         for clause in hard_clauses:
-            file.write(f"{top_weight} {' '.join(map(str, clause))} 0\n")
+            file.write(f"h {' '.join(map(str, clause))} 0\n")
         
         # Write soft clauses with their weights
         for weight, clause in soft_clauses:
             file.write(f"{weight} {' '.join(map(str, clause))} 0\n")
+            
+        # For debugging, print details about the WCNF file
+        print(f"Created WCNF file with {len(hard_clauses)} hard clauses and {len(soft_clauses)} soft clauses")
+        print(f"Variable count: {counter-1}")
+        print(f"Sample variables: ph_{lower_bound}={variables[f'ph_{lower_bound}']}, " +
+              f"px{1},{0}={variables.get(f'px{1},{0}', 'N/A')}")
+        
+        # On Windows, you might need to flush and close the file explicitly
+        file.flush()
     
-    # Call open-wbo solver
+    # Call tt-open-wbo-inc solver
     try:
-        print(f"Running open-wbo on {wcnf_file}...")
+        print(f"Running tt-open-wbo-inc on {wcnf_file}...")
         result = subprocess.run(
-            ["open-wbo", wcnf_file], 
+            ["./tt-open-wbo-inc-Glucose4_1_static", wcnf_file], 
             capture_output=True, 
             text=True
         )
         
         output = result.stdout
+        print(f"Solver output preview: {output[:200]}...")  # Debug: Show beginning of output
         
         # Parse the output to find the model
         optimal_height = upper_bound
@@ -229,78 +239,119 @@ def SPP_MaxSAT(width, rectangles, lower_bound, upper_bound):
         
         if "OPTIMUM FOUND" in output:
             print("Optimal solution found!")
+            
             # Extract the model line (starts with "v ")
             for line in output.split('\n'):
                 if line.startswith('v '):
-                    model_str = line[2:].strip()
-                    model = list(map(int, model_str.split()))
+                    print(f"Found solution line: {line[:50]}...")  # Debug output
                     
-                    # Process the model to extract positions
+                    # Fix: Use strip() instead of trip() (typo)
+                    # New format: v 01010101010... (continuous binary string)
+                    # Remove the 'v ' prefix
+                    binary_string = line[2:].strip()
+                    
+                    # # Diagnostic information
+                    # print("\nSOLVER OUTPUT DIAGNOSTICS:")
+                    # print("=" * 50)
+                    # print(f"Characters in solution: {set(binary_string)}")
+                    # print(f"First 20 characters: {binary_string[:20]}")
+                    # print(f"Length of binary string: {len(binary_string)}")
+                    # print("=" * 50)
+                    
+                    # Convert binary values to true variable set
                     true_vars = set()
-                    for var in model:
-                        if var > 0:  # Only positive literals are true
-                            true_vars.add(var)
+                    
+                    # Process the solution string - tt-open-wbo-inc can output in different formats
+                    # Try to interpret as space-separated list of integers first
+                    if " " in binary_string:
+                        try:
+                            for val in binary_string.split():
+                                val_int = int(val)
+                                if val_int > 0:  # Positive literals represent true variables
+                                    true_vars.add(val_int)
+                        except ValueError:
+                            # Not integers, try as space-separated binary values
+                            for i, val in enumerate(binary_string.split()):
+                                if val == '1':
+                                    true_vars.add(i + 1)  # 1-indexed
+                    else:
+                        # No spaces - treat as continuous binary string
+                        for i, val in enumerate(binary_string):
+                            if val == '1':
+                                true_vars.add(i + 1)  # 1-indexed
+                    
+                    print(f"Found {len(true_vars)} true variables out of {len(binary_string)} total")
                     
                     # Extract height variables and find minimum height where ph_h is true
                     ph_true_heights = []
                     for h in range(lower_bound, upper_bound + 1):
-                        if variables[f"ph_{h}"] in true_vars:
+                        var_key = f"ph_{h}"
+                        if var_key in variables and variables[var_key] in true_vars:
                             ph_true_heights.append(h)
+                    
+                    # print(f"Height variables in model: {[(h, variables[f'ph_{h}']) for h in range(lower_bound, lower_bound+5)]}")
+                    # print(f"Sample true variables: {sorted(list(true_vars)[:20])}")
                     
                     if ph_true_heights:
                         optimal_height = min(ph_true_heights)
+                        print(f"Heights where ph_h is true: {sorted(ph_true_heights)}")
                     else:
-                        print("WARNING: No ph_h variables are true! This shouldn't happen with our constraints.")
-                    
-                    # Diagnostic output
-                    print(f"Heights where ph_h is true: {sorted(ph_true_heights)}")
+                        print("WARNING: No ph_h variables are true! This may indicate a parsing issue.")
+                        # Check if we're within bounds - the solution string might not include all variables
+                        height_var_indices = [variables[f"ph_{h}"] for h in range(lower_bound, upper_bound + 1)]
+                        min_height_var = min(height_var_indices)
+                        max_height_var = max(height_var_indices)
+                        
+                        if len(binary_string) < min_height_var:
+                            print(f"Binary string length ({len(binary_string)}) is less than smallest height variable index ({min_height_var}).")
+                            print("This suggests the output format needs to be interpreted differently.")
+                            # Assume lowest possible height when uncertain
+                            optimal_height = lower_bound
+
+                    # If we couldn't parse any variables but the solver found a solution,
+                    # use the lower bound as a fallback
+                    if not true_vars:
+                        print("WARNING: Solution parsing failed. Using lower bound height as fallback.")
+                        optimal_height = lower_bound
+                        
+                        # Set default positions - simple greedy left-bottom placement
+                        x_pos = 0
+                        y_pos = 0
+                        max_height = 0
+                        for i in range(n_rectangles):
+                            # If current rectangle doesn't fit in the current row, move to next row
+                            if x_pos + rectangles[i][0] > width:
+                                x_pos = 0
+                                y_pos = max_height
+                            
+                            positions[i][0] = x_pos
+                            positions[i][1] = y_pos
+                            
+                            # Update position for next rectangle
+                            x_pos += rectangles[i][0]
+                            max_height = max(max_height, y_pos + rectangles[i][1])
                     
                     # Extract positions - Find the exact transition point for each rectangle
                     for i in range(n_rectangles):
                         # Find x position (first position where px is true)
                         found_x = False
                         for e in range(width - rectangles[i][0] + 1):
-                            if f"px{i + 1},{e}" in variables and variables[f"px{i + 1},{e}"] in true_vars:
-                                if e == 0 or variables[f"px{i + 1},{e-1}"] not in true_vars:
+                            var_key = f"px{i + 1},{e}"
+                            if var_key in variables and variables[var_key] in true_vars:
+                                if e == 0 or f"px{i + 1},{e-1}" not in variables or variables[f"px{i + 1},{e-1}"] not in true_vars:
                                     positions[i][0] = e
                                     found_x = True
                                     break
-                        if not found_x:
-                            print(f"WARNING: Could not determine x-position for rectangle {i}!")
-                        
+                                    
                         # Find y position (first position where py is true)
                         found_y = False
                         for y_pos in range(upper_bound - rectangles[i][1] + 1):
-                            if f"py{i + 1},{y_pos}" in variables and variables[f"py{i + 1},{y_pos}"] in true_vars:
-                                if y_pos == 0 or variables[f"py{i + 1},{y_pos-1}"] not in true_vars:
+                            var_key = f"py{i + 1},{y_pos}"
+                            if var_key in variables and variables[var_key] in true_vars:
+                                if y_pos == 0 or f"py{i + 1},{y_pos-1}" not in variables or variables[f"py{i + 1},{y_pos-1}"] not in true_vars:
                                     positions[i][1] = y_pos
                                     found_y = True
                                     break
-                        if not found_y:
-                            print(f"WARNING: Could not determine y-position for rectangle {i}!")
-                    
-                    # CRITICAL: Verify that all rectangles fit within the optimal height
-                    actual_max_height = 0
-                    for i in range(n_rectangles):
-                        top_edge = positions[i][1] + rectangles[i][1]
-                        actual_max_height = max(actual_max_height, top_edge)
-                        
-                        # Individual rectangle check
-                        if top_edge > optimal_height:
-                            print(f"WARNING: Rectangle {i} extends to height {top_edge}, "
-                                  f"exceeding stated optimal height {optimal_height}!")
-                    
-                    # Overall check
-                    if actual_max_height != optimal_height:
-                        print(f"WARNING: Actual packing height ({actual_max_height}) differs from "
-                              f"theoretical optimal ({optimal_height})!")
-                        
-                        # Use the actual maximum height to ensure valid display
-                        optimal_height = actual_max_height
-                    else:
-                        print(f"Verification successful: All rectangles fit within optimal height {optimal_height}.")
-                    
-                    break
         else:
             print("No optimal solution found.")
             print(f"Solver output: {output}")

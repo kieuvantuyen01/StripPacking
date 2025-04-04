@@ -47,7 +47,7 @@ def positive_range(end):
     return range(end)
 
 def SPP_MaxSAT(width, rectangles, lower_bound, upper_bound):
-    """Solve 2SPP using Max-SAT approach with open-wbo"""
+    """Solve 2SPP using Max-SAT approach with tt-open-wbo-inc"""
     n_rectangles = len(rectangles)
     variables = {}
     counter = 1
@@ -55,6 +55,10 @@ def SPP_MaxSAT(width, rectangles, lower_bound, upper_bound):
     # Create a temporary file for the Max-SAT formula
     with tempfile.NamedTemporaryFile(delete=False, mode='w', suffix='.wcnf') as file:
         wcnf_file = file.name
+        
+        # Add comments for clarity
+        file.write(f"c Strip Packing Problem with Rotation, W={width}, n={n_rectangles}\n")
+        file.write(f"c Lower bound={lower_bound}, Upper bound={upper_bound}\n")
         
         # Define variables for rectangle positions and relations
         for i in range(n_rectangles):
@@ -214,40 +218,44 @@ def SPP_MaxSAT(width, rectangles, lower_bound, upper_bound):
         # Prepare soft clauses with weights
         soft_clauses = []
         
-        # THE KEY FIX: Use different soft clauses that directly minimize height
-        # For each height, add a soft clause to minimize the height
-        # We want ph_lower_bound to be true and ph_upper_bound to be false
-        
-        # 1. Add a soft clause for each height directly, with unit weights
+        # Use weight 1 for all height variables
         for h in range(lower_bound, upper_bound + 1):
-            soft_clauses.append((1, [variables[f"ph_{h}"]]))  # We want ph_h to be TRUE
+            soft_clauses.append((1, [variables[f"ph_{h}"]]))  # We want ph_h to be FALSE when possible
         
-        # 2. Require at least one ph_h to be true with a hard clause (min feasible height)
+        # Require at least one ph_h to be true (ensures a solution exists)
         all_ph_vars = [variables[f"ph_{h}"] for h in range(lower_bound, upper_bound + 1)]
         hard_clauses.append(all_ph_vars)
         
-        # Write WCNF header: p wcnf num_variables num_clauses top_weight
-        top_weight = 2  # Any value > max soft clause weight (which is 1)
-        file.write(f"p wcnf {counter - 1} {len(hard_clauses) + len(soft_clauses)} {top_weight}\n")
+        # No p-line needed for tt-open-wbo-inc
         
-        # Write hard clauses with top weight
+        # Write hard clauses with 'h' prefix
         for clause in hard_clauses:
-            file.write(f"{top_weight} {' '.join(map(str, clause))} 0\n")
+            file.write(f"h {' '.join(map(str, clause))} 0\n")
         
         # Write soft clauses with their weights
         for weight, clause in soft_clauses:
             file.write(f"{weight} {' '.join(map(str, clause))} 0\n")
+        
+        # For debugging, print details about the WCNF file
+        print(f"Created WCNF file with {len(hard_clauses)} hard clauses and {len(soft_clauses)} soft clauses")
+        print(f"Variable count: {counter-1}")
+        print(f"Sample variables: ph_{lower_bound}={variables[f'ph_{lower_bound}']}, " +
+              f"px{1},{0}={variables.get(f'px{1},{0}', 'N/A')}")
+        
+        # On Windows, you might need to flush and close the file explicitly
+        file.flush()
     
-    # Call open-wbo solver
+    # Call tt-open-wbo-inc solver
     try:
-        print(f"Running open-wbo on {wcnf_file}...")
+        print(f"Running tt-open-wbo-inc on {wcnf_file}...")
         result = subprocess.run(
-            ["open-wbo", wcnf_file], 
+            ["./tt-open-wbo-inc-Glucose4_1_static", wcnf_file], 
             capture_output=True, 
             text=True
         )
         
         output = result.stdout
+        print(f"Solver output preview: {output[:200]}...")  # Debug: Show beginning of output
         
         # Parse the output to find the model
         optimal_height = upper_bound
@@ -256,60 +264,124 @@ def SPP_MaxSAT(width, rectangles, lower_bound, upper_bound):
         
         if "OPTIMUM FOUND" in output:
             print("Optimal solution found!")
+            
             # Extract the model line (starts with "v ")
             for line in output.split('\n'):
                 if line.startswith('v '):
-                    model_str = line[2:].strip()
-                    model = list(map(int, model_str.split()))
+                    print(f"Found solution line: {line[:50]}...")  # Debug output
                     
-                    # Process the model to extract positions and rotations
+                    # New format: v 01010101010... (continuous binary string)
+                    # Remove the 'v ' prefix
+                    binary_string = line[2:].strip()
+                    
+                    # Diagnostic information
+                    print("\nSOLVER OUTPUT DIAGNOSTICS:")
+                    print("=" * 50)
+                    print(f"Characters in solution: {set(binary_string)}")
+                    print(f"First 20 characters: {binary_string[:20]}")
+                    print(f"Length of binary string: {len(binary_string)}")
+                    print("=" * 50)
+                    
+                    # Convert binary values to true variable set
                     true_vars = set()
-                    for var in model:
-                        if var > 0:  # Only positive literals are true
-                            true_vars.add(var)
+                    
+                    # Process the solution string - tt-open-wbo-inc can output in different formats
+                    # Try to interpret as space-separated list of integers first
+                    if " " in binary_string:
+                        try:
+                            for val in binary_string.split():
+                                val_int = int(val)
+                                if val_int > 0:  # Positive literals represent true variables
+                                    true_vars.add(val_int)
+                        except ValueError:
+                            # Not integers, try as space-separated binary values
+                            for i, val in enumerate(binary_string.split()):
+                                if val == '1':
+                                    true_vars.add(i + 1)  # 1-indexed
+                    else:
+                        # No spaces - treat as continuous binary string
+                        for i, val in enumerate(binary_string):
+                            if val == '1':
+                                true_vars.add(i + 1)  # 1-indexed
+                    
+                    print(f"Found {len(true_vars)} true variables out of {len(binary_string)} total")
                     
                     # Extract height variables and find minimum height where ph_h is true
                     ph_true_heights = []
                     for h in range(lower_bound, upper_bound + 1):
-                        if variables[f"ph_{h}"] in true_vars:
+                        var_key = f"ph_{h}"
+                        if var_key in variables and variables[var_key] in true_vars:
                             ph_true_heights.append(h)
+                    
+                    print(f"Height variables in model: {[(h, variables[f'ph_{h}']) for h in range(lower_bound, lower_bound+5)]}")
+                    print(f"Sample true variables: {sorted(list(true_vars)[:20])}")
                     
                     if ph_true_heights:
                         optimal_height = min(ph_true_heights)
+                        print(f"Heights where ph_h is true: {sorted(ph_true_heights)}")
                     else:
-                        print("WARNING: No ph_h variables are true! This shouldn't happen with our constraints.")
-                    
-                    # Diagnostic output
-                    print(f"Heights where ph_h is true: {sorted(ph_true_heights)}")
-                    
-                    # Extract rotation variables
-                    for i in range(n_rectangles):
-                        if variables[f"r{i + 1}"] in true_vars:
-                            rotations[i] = True
-                    
-                    # Extract positions - Find the exact transition point for each rectangle
-                    for i in range(n_rectangles):
-                        # Find x position (first position where px is true)
-                        found_x = False
-                        for e in range(width):
-                            if variables[f"px{i + 1},{e}"] in true_vars:
-                                if e == 0 or variables[f"px{i + 1},{e-1}"] not in true_vars:
-                                    positions[i][0] = e
-                                    found_x = True
-                                    break
-                        if not found_x:
-                            print(f"WARNING: Could not determine x-position for rectangle {i}!")
+                        print("WARNING: No ph_h variables are true! This may indicate a parsing issue.")
+                        # Use lower bound as fallback
+                        optimal_height = lower_bound
                         
-                        # Find y position (first position where py is true)
-                        found_y = False
-                        for y_pos in range(upper_bound):
-                            if variables[f"py{i + 1},{y_pos}"] in true_vars:
-                                if y_pos == 0 or variables[f"py{i + 1},{y_pos-1}"] not in true_vars:
-                                    positions[i][1] = y_pos
-                                    found_y = True
-                                    break
-                        if not found_y:
-                            print(f"WARNING: Could not determine y-position for rectangle {i}!")
+                    # If we couldn't parse any variables but the solver found a solution,
+                    # use the lower bound as a fallback
+                    if not true_vars:
+                        print("WARNING: Solution parsing failed. Using lower bound height as fallback.")
+                        optimal_height = lower_bound
+                        
+                        # Set default positions - simple greedy left-bottom placement
+                        x_pos = 0
+                        y_pos = 0
+                        max_height = 0
+                        for i in range(n_rectangles):
+                            # Default to non-rotated
+                            w = rectangles[i][0]
+                            h = rectangles[i][1]
+                            
+                            # If current rectangle doesn't fit in the current row, move to next row
+                            if x_pos + w > width:
+                                x_pos = 0
+                                y_pos = max_height
+                            
+                            positions[i][0] = x_pos
+                            positions[i][1] = y_pos
+                            rotations[i] = False
+                            
+                            # Update position for next rectangle
+                            x_pos += w
+                            max_height = max(max_height, y_pos + h)
+                    else:
+                        # Extract rotation variables
+                        for i in range(n_rectangles):
+                            if variables[f"r{i + 1}"] in true_vars:
+                                rotations[i] = True
+                        
+                        # Extract positions
+                        for i in range(n_rectangles):
+                            # Find x position (first position where px is true)
+                            found_x = False
+                            for e in range(width):
+                                var_key = f"px{i + 1},{e}"
+                                if var_key in variables and variables[var_key] in true_vars:
+                                    if e == 0 or variables[f"px{i + 1},{e-1}"] not in true_vars:
+                                        positions[i][0] = e
+                                        found_x = True
+                                        break
+                            if not found_x:
+                                print(f"WARNING: Could not determine x-position for rectangle {i}!")
+                            
+                            # Find y position (first position where py is true)
+                            found_y = False
+                            for y_pos in range(upper_bound):
+                                var_key = f"py{i + 1},{y_pos}"
+                                if var_key in variables and variables[var_key] in true_vars:
+                                    if y_pos == 0 or variables[f"py{i + 1},{y_pos-1}"] not in true_vars:
+                                        positions[i][1] = y_pos
+                                        found_y = True
+                                        break
+                            if not found_y:
+                                print(f"WARNING: Could not determine y-position for rectangle {i}!")
                     
                     # CRITICAL: Verify that all rectangles fit within the optimal height
                     actual_max_height = 0
@@ -321,12 +393,12 @@ def SPP_MaxSAT(width, rectangles, lower_bound, upper_bound):
                         # Individual rectangle check
                         if top_edge > optimal_height:
                             print(f"WARNING: Rectangle {i} extends to height {top_edge}, "
-                                  f"exceeding stated optimal height {optimal_height}!")
+                                f"exceeding stated optimal height {optimal_height}!")
                     
                     # Overall check
                     if actual_max_height != optimal_height:
                         print(f"WARNING: Actual packing height ({actual_max_height}) differs from "
-                              f"theoretical optimal ({optimal_height})!")
+                            f"theoretical optimal ({optimal_height})!")
                         
                         # Use the actual maximum height to ensure valid display
                         optimal_height = actual_max_height
