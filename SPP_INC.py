@@ -6,7 +6,7 @@ import pandas as pd
 import signal
 
 from pysat.formula import CNF
-from pysat.solvers import Glucose4
+from pysat.solvers import Glucose42
 
 start = timeit.default_timer() # start clock
 
@@ -213,7 +213,7 @@ def SPP_Incremental(rectangles, strip_width, lower_bound, upper_bound, timeout=1
                 cnf.append([-variables[f"ph_{h}"], variables[f"py{i+1},{h - rectangles[i][1]}"]])
     
     # Initialize the incremental SAT solver with the CNF formula
-    with Glucose4(bootstrap_with=cnf) as solver:
+    with Glucose42(bootstrap_with=cnf) as solver:
         optimal_height = upper_bound
         positions = None
         

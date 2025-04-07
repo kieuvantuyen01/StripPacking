@@ -277,14 +277,14 @@ def timeout_handler(signum, frame):
 results_data = []
 
 try:  # Add outer try-except block for KeyboardInterrupt
-    for instance in [1, 2]:  # Run specific instances 33, 38, and 40
+    for instance in [30]:  # Run specific instances 33, 38, and 40
         try:
             print(f"\nProcessing instance {instance}")
             start = timeit.default_timer()
 
             # Set timeout of 300 seconds (5 minutes)
             signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(10)  # 300 secondủ
+            signal.alarm(300)  # 300 seconds
 
             # read file input
             input = read_file_instance(instance)
